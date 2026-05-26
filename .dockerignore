@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.generated.pdf
+.vscode/
+.idea/
+Dockerfile
+.dockerignore
+docker-compose.yml
