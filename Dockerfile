@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY main.py ./
-COPY "slip template.pdf" ./
+COPY ["slip template.pdf", "./"]
 
 EXPOSE 8000
 
