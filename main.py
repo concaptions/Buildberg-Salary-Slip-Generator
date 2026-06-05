@@ -13,6 +13,9 @@ load_dotenv()
 
 TEMPLATE_PATH = Path(__file__).parent / "slip template.pdf"
 
+GRAY_ROW_BG = (238 / 255, 238 / 255, 238 / 255)  # #EEEEEE
+GRAY_ROW_PLACEHOLDERS = {"[SALARY_AMOUNT]", "[SALARY_WORDS]"}
+
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -50,7 +53,8 @@ def fill_pdf(template_bytes: bytes, replacements: dict[str, str]) -> bytes:
         for line in block.get("lines", []):
             for span in line.get("spans", []):
                 original = span["text"]
-                if not any(ph in original for ph in replacements):
+                matched = [ph for ph in replacements if ph in original]
+                if not matched:
                     continue
 
                 new_text = original
@@ -61,6 +65,7 @@ def fill_pdf(template_bytes: bytes, replacements: dict[str, str]) -> bytes:
                 # Right-aligned spans in this template sit near the right margin.
                 right_aligned = (page_width - bbox.x1) < 60
                 is_bold = "Bold" in span.get("font", "")
+                fill = GRAY_ROW_BG if any(ph in GRAY_ROW_PLACEHOLDERS for ph in matched) else (1, 1, 1)
 
                 actions.append(
                     {
@@ -70,6 +75,7 @@ def fill_pdf(template_bytes: bytes, replacements: dict[str, str]) -> bytes:
                         "color": _color_int_to_rgb(span.get("color", 0)),
                         "right_aligned": right_aligned,
                         "fontname": "hebo" if is_bold else "helv",
+                        "fill": fill,
                     }
                 )
 
@@ -77,7 +83,7 @@ def fill_pdf(template_bytes: bytes, replacements: dict[str, str]) -> bytes:
         rect = fitz.Rect(a["bbox"])
         rect.x0 -= 1
         rect.x1 += 1
-        page.add_redact_annot(rect, fill=(1, 1, 1))
+        page.add_redact_annot(rect, fill=a["fill"])
     page.apply_redactions()
 
     for a in actions:
