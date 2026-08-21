@@ -33,6 +33,42 @@ class PayslipRequest(BaseModel):
     salary_amount: str = Field(..., description="Value for [SALARY_AMOUNT] (total pay)")
     salary_words: str = Field(..., description="Value for [SALARY_WORDS] (total pay in words)")
     email: EmailStr = Field(..., description="Recipient email address")
+    pay_date: str | None = Field(
+        None, description="Value for [PAY_DATE]; falls back to today when omitted"
+    )
+    pay_period: str | None = Field(
+        None, description="Value for [PAY_PERIOD]; falls back to the current month when omitted"
+    )
+
+
+ISO_DATE_FORMATS = (
+    "%Y-%m-%dT%H:%M:%S.%fZ",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d",
+)
+
+
+def _normalize_date(value: str | None, fmt: str, fallback: datetime) -> str:
+    """Use the supplied value as-is, converting only if it is a raw ISO timestamp.
+
+    Apps Script serialises a real Date cell as an ISO string, so a payload can
+    arrive as either "01 June 2025" (already formatted) or
+    "2025-06-01T00:00:00.000Z". Anything that is not ISO is passed through
+    untouched so free-text periods like "May - June 2025" survive.
+    """
+    text = (value or "").strip()
+    if not text:
+        return fallback.strftime(fmt)
+
+    for iso_fmt in ISO_DATE_FORMATS:
+        try:
+            return datetime.strptime(text, iso_fmt).strftime(fmt)
+        except ValueError:
+            continue
+
+    return text
 
 
 def _color_int_to_rgb(c: int) -> tuple[float, float, float]:
@@ -143,8 +179,8 @@ def generate_payslip(req: PayslipRequest):
         "[SALARY]": req.salary,
         "[SALARY_AMOUNT]": req.salary_amount,
         "[SALARY_WORDS]": req.salary_words,
-        "[PAY_DATE]": today.strftime("%d %B %Y"),
-        "[PAY_PERIOD]": today.strftime("%B %Y"),
+        "[PAY_DATE]": _normalize_date(req.pay_date, "%d %B %Y", today),
+        "[PAY_PERIOD]": _normalize_date(req.pay_period, "%B %Y", today),
     }
 
     template_bytes = TEMPLATE_PATH.read_bytes()
