@@ -1,6 +1,6 @@
 import os
 import smtplib
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -57,6 +57,11 @@ def _normalize_date(value: str | None, fmt: str, fallback: datetime) -> str:
     arrive as either "01 June 2025" (already formatted) or
     "2025-06-01T00:00:00.000Z". Anything that is not ISO is passed through
     untouched so free-text periods like "May - June 2025" survive.
+
+    A date cell holds local midnight, which JSON.stringify emits as a UTC
+    instant: in a UTC+5 sheet, 8 August becomes "2026-08-07T19:00:00.000Z".
+    Formatting that literally prints the wrong day (and, on the 1st of a month,
+    the wrong month), so the instant is snapped back to the nearest midnight.
     """
     text = (value or "").strip()
     if not text:
@@ -64,9 +69,13 @@ def _normalize_date(value: str | None, fmt: str, fallback: datetime) -> str:
 
     for iso_fmt in ISO_DATE_FORMATS:
         try:
-            return datetime.strptime(text, iso_fmt).strftime(fmt)
+            parsed = datetime.strptime(text, iso_fmt)
         except ValueError:
             continue
+        # Nearest midnight: a time of 12:00 or later belongs to the next day.
+        return (parsed + timedelta(hours=12)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).strftime(fmt)
 
     return text
 
